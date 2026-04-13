@@ -56,8 +56,9 @@ Grant camera access when prompted.
 ## Tips
 
 - Move the device slowly at first so tracking and mapping can stabilize.
-- If performance or memory warnings mention **retained `ARFrame`** objects, avoid holding frames across async work; sample and copy only what you need from each frame.
+
 
 ## License
 
-No license file is included in this repository by default. Add one if you plan to distribute the project.
+No license file is included in this repository by default. 
+Please contact me if you wish to use this code for distribution.
