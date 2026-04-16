@@ -7,7 +7,12 @@ import Foundation
 import Combine
 
 @MainActor
-final class LoggerStore: ObservableObject {
+protocol Logging: AnyObject {
+    func log(_ level: LoggerStore.Level, _ message: String)
+}
+
+@MainActor
+final class LoggerStore: ObservableObject, Logging {
     static let shared = LoggerStore()
 
     enum Level: String, CaseIterable, Hashable {

@@ -14,16 +14,15 @@ struct StatusBannerView: View {
   
   @ObservedObject var controller: ARSessionController
   let onResetTapped: () -> Void
+  let soundPlayer: SoundPlaying
   @StateObject private var diagnostics = StatusBannerDiagnosticsViewModel()
-  
-  private let panelAnimation = Animation.spring(response: 0.36, dampingFraction: 0.82)
   
   var body: some View {
     VStack(alignment: .leading, spacing: isStatusBannerExpanded ? 8 : 6) {
       HStack(spacing: 8) {
         Button {
-          SoundPlayer.play(isStatusBannerExpanded ? .shrink : .expand)
-          withAnimation(panelAnimation) {
+          soundPlayer.play(isStatusBannerExpanded ? .shrink : .expand)
+          withAnimation(PanelStyle.animation) {
             isStatusBannerExpanded.toggle()
           }
         }
@@ -36,11 +35,11 @@ struct StatusBannerView: View {
             Image(systemName: "info.circle.fill")
               .font(.title3.weight(.semibold))
               .foregroundStyle(.blue)
-              .padding(.leading, 8)
-              .padding(.trailing, 12)
-              .padding(.vertical, 12)
-              .background(.ultraThinMaterial, in: UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0, bottomTrailingRadius: 22, topTrailingRadius: 22))
-              .shadow(color: .black.opacity(0.18), radius: 8, y: 4)
+              .padding(.leading, PanelStyle.headerIconLeading)
+              .padding(.trailing, PanelStyle.headerIconTrailing)
+              .padding(.vertical, PanelStyle.headerIconVertical)
+              .background(.ultraThinMaterial, in: UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0, bottomTrailingRadius: PanelStyle.collapsedTrailingRadius, topTrailingRadius: PanelStyle.collapsedTrailingRadius))
+              .shadow(color: .black.opacity(PanelStyle.shadowOpacity), radius: PanelStyle.shadowRadius, y: PanelStyle.shadowY)
           }
         }
         .buttonStyle(.plain)
@@ -48,7 +47,7 @@ struct StatusBannerView: View {
 
         if isStatusBannerExpanded {
           Button {
-            SoundPlayer.play(.reset)
+            soundPlayer.play(.reset)
             onResetTapped()
           } label: {
             Image(systemName: "arrow.counterclockwise.circle.fill")
@@ -65,7 +64,13 @@ struct StatusBannerView: View {
           HStack{
             VStack(alignment: .leading, spacing: 4) {
               Label {
-                Text("\(controller.meshCount) Objects")
+                Text("\(controller.userObjectCount) User Objects")
+              } icon: {
+                Image(systemName: "tennisball.fill")
+              }
+
+              Label {
+                Text("\(controller.meshCount) Mesh Objects")
               } icon: {
                 Image(systemName: "arrowtriangle.up")
               }
@@ -75,6 +80,8 @@ struct StatusBannerView: View {
               } icon: {
                 Image(systemName: "square.stack.3d.up")
               }
+              
+              Divider()
               
               Label {
                 Text("\(diagnostics.frameRateText) FPS")
@@ -101,12 +108,14 @@ struct StatusBannerView: View {
               indicatorChip(title: controller.mapStateText, isGood: controller.isMapStateGood)
               indicatorChip(title: controller.trackingStateText, isGood: controller.isTrackingStateGood)
               indicatorChip(title: controller.vioStateText, isGood: controller.isVioInitialized)
+              
+              Text(controller.meshStateText)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             }
           }
           
-          Text(controller.meshStateText)
-            .font(.caption2)
-            .foregroundStyle(.secondary)
+          
           
 
         }
@@ -129,13 +138,13 @@ struct StatusBannerView: View {
     .background(
       .ultraThinMaterial,
       in: isStatusBannerExpanded
-      ? AnyShape(RoundedRectangle(cornerRadius: 12))
-      : AnyShape(UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0, bottomTrailingRadius: 22, topTrailingRadius: 22))
+      ? AnyShape(RoundedRectangle(cornerRadius: PanelStyle.expandedCornerRadius))
+      : AnyShape(UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0, bottomTrailingRadius: PanelStyle.collapsedTrailingRadius, topTrailingRadius: PanelStyle.collapsedTrailingRadius))
     )
     .fixedSize(horizontal: !isStatusBannerExpanded, vertical: false)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .offset(x: isStatusBannerExpanded ? 0 : -16)
-    .animation(panelAnimation, value: isStatusBannerExpanded)
+    .offset(x: isStatusBannerExpanded ? 0 : PanelStyle.collapsedOffsetX)
+    .animation(PanelStyle.animation, value: isStatusBannerExpanded)
   }
   
   private func indicatorChip(title: String, isGood: Bool) -> some View {
@@ -196,5 +205,6 @@ private final class StatusBannerDiagnosticsViewModel: ObservableObject {
   
   StatusBannerView(isStatusBannerExpanded: .constant(true),
                    controller: controller,
-                   onResetTapped: {})
+                   onResetTapped: {},
+                   soundPlayer: SoundPlayer.shared)
 }

@@ -14,6 +14,7 @@ final class ARSessionController: NSObject, ObservableObject {
     @Published private(set) var planeCount: Int = 0
     @Published private(set) var meshStateText: String = "Mesh: Unknown"
     @Published private(set) var meshCount: Int = 0
+    @Published private(set) var userObjectCount: Int = 0
     @Published private(set) var planesDetectedCount: Int = 0
     @Published private(set) var mapStateText: String = "Map: Limited"
     @Published private(set) var trackingStateText: String = "Tracking: Limited"
@@ -23,10 +24,11 @@ final class ARSessionController: NSObject, ObservableObject {
     @Published private(set) var isVioInitialized: Bool = false
 
     private weak var arView: ARView?
-    private let logger = LoggerStore.shared
+    private let logger: Logging
     private var planeEntities: [UUID: ModelEntity] = [:]
     private var planeAnchorEntities: [UUID: AnchorEntity] = [:]
     private var planeLabelEntities: [UUID: ModelEntity] = [:]
+    private var userObjectAnchors: [AnchorEntity] = []
     private var meshAnchorIDs: Set<UUID> = []
     private var showPlaneOverlays: Bool = true
     private var showPlaneLabels: Bool = true
@@ -40,6 +42,11 @@ final class ARSessionController: NSObject, ObservableObject {
         let showMeshOverlays: Bool
         let classifyMeshes: Bool
         let peopleOcclusion: Bool
+    }
+
+    init(logger: Logging = LoggerStore.shared) {
+        self.logger = logger
+        super.init()
     }
 
     func attach(to arView: ARView) {
@@ -143,6 +150,8 @@ final class ARSessionController: NSObject, ObservableObject {
         )
         anchor.addChild(marker)
         arView.scene.addAnchor(anchor)
+        userObjectAnchors.append(anchor)
+        publishUserObjectCount(userObjectAnchors.count)
     }
 
     private func clearPlaneEntities() {
@@ -155,10 +164,15 @@ final class ARSessionController: NSObject, ObservableObject {
         for anchor in planeAnchorEntities.values {
             anchor.removeFromParent()
         }
+        for userAnchor in userObjectAnchors {
+            userAnchor.removeFromParent()
+        }
         planeEntities.removeAll()
         planeLabelEntities.removeAll()
         planeAnchorEntities.removeAll()
+        userObjectAnchors.removeAll()
         meshAnchorIDs.removeAll()
+        publishUserObjectCount(0)
         publishCounts(planes: 0, meshes: 0)
         lastSessionSnapshot = nil
     }
@@ -283,6 +297,12 @@ final class ARSessionController: NSObject, ObservableObject {
             self?.planeCount = planes
             self?.planesDetectedCount = planes
             self?.meshCount = meshes
+        }
+    }
+
+    private func publishUserObjectCount(_ value: Int) {
+        DispatchQueue.main.async { [weak self] in
+            self?.userObjectCount = value
         }
     }
 

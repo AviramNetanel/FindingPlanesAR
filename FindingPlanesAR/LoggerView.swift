@@ -8,11 +8,20 @@ import UIKit
 
 struct LoggerView: View {
     @Binding var isExpanded: Bool
-    @StateObject private var logger = LoggerStore.shared
+    @StateObject private var logger: LoggerStore
+    private let soundPlayer: SoundPlaying
     @State private var enabledLevels: Set<LoggerStore.Level> = Set(LoggerStore.Level.allCases)
     @State private var copiedFeedbackVisible = false
 
-    private let panelAnimation = Animation.spring(response: 0.36, dampingFraction: 0.82)
+    init(
+        isExpanded: Binding<Bool>,
+        logger: LoggerStore = .shared,
+        soundPlayer: SoundPlaying = SoundPlayer.shared
+    ) {
+        _isExpanded = isExpanded
+        _logger = StateObject(wrappedValue: logger)
+        self.soundPlayer = soundPlayer
+    }
 
     private var filteredEntries: [LoggerStore.Entry] {
         logger.entries.filter { enabledLevels.contains($0.level) }
@@ -22,8 +31,8 @@ struct LoggerView: View {
         VStack(alignment: .leading, spacing: isExpanded ? 8 : 6) {
             HStack(spacing: 8) {
                 Button {
-                    SoundPlayer.play(isExpanded ? .shrink : .expand)
-                    withAnimation(panelAnimation) {
+                    soundPlayer.play(isExpanded ? .shrink : .expand)
+                    withAnimation(PanelStyle.animation) {
                         isExpanded.toggle()
                     }
                 } label: {
@@ -35,9 +44,9 @@ struct LoggerView: View {
                         Image(systemName: "list.clipboard.fill")
                             .font(.title3.weight(.semibold))
                             .foregroundStyle(.blue)
-                            .padding(.leading, 8)
-                            .padding(.trailing, 12)
-                            .padding(.vertical, 12)
+                            .padding(.leading, PanelStyle.headerIconLeading)
+                            .padding(.trailing, PanelStyle.headerIconTrailing)
+                            .padding(.vertical, PanelStyle.headerIconVertical)
                     }
                 }
                 .buttonStyle(.plain)
@@ -49,7 +58,7 @@ struct LoggerView: View {
                         .toggleStyle(.switch)
                         .scaleEffect(0.8)
                         .onChange(of: logger.isEnabled) { _ in
-                            SoundPlayer.play(.toggle)
+                            soundPlayer.play(.toggle)
                         }
                 }
             }
@@ -63,7 +72,7 @@ struct LoggerView: View {
                     Spacer(minLength: 8)
 
                     Button {
-                        SoundPlayer.play(.trash)
+                        soundPlayer.play(.trash)
                         logger.clear()
                     } label: {
                         Image(systemName: "trash")
@@ -119,19 +128,19 @@ struct LoggerView: View {
         .background(
             .ultraThinMaterial,
             in: isExpanded
-            ? AnyShape(RoundedRectangle(cornerRadius: 12))
-            : AnyShape(UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0, bottomTrailingRadius: 22, topTrailingRadius: 22))
+            ? AnyShape(RoundedRectangle(cornerRadius: PanelStyle.expandedCornerRadius))
+            : AnyShape(UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0, bottomTrailingRadius: PanelStyle.collapsedTrailingRadius, topTrailingRadius: PanelStyle.collapsedTrailingRadius))
         )
         .frame(maxWidth: isExpanded ? 420 : nil, alignment: .leading)
         .fixedSize(horizontal: !isExpanded, vertical: false)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .offset(x: isExpanded ? 0 : -16)
-        .animation(panelAnimation, value: isExpanded)
+        .offset(x: isExpanded ? 0 : PanelStyle.collapsedOffsetX)
+        .animation(PanelStyle.animation, value: isExpanded)
     }
 
     private func levelToggle(_ level: LoggerStore.Level) -> some View {
         Button {
-            SoundPlayer.play(.toggle)
+            soundPlayer.play(.toggle)
             if enabledLevels.contains(level) {
                 enabledLevels.remove(level)
             } else {
@@ -158,7 +167,7 @@ struct LoggerView: View {
     }
 
     private func copyLogs() {
-        SoundPlayer.play(.copy)
+        soundPlayer.play(.copy)
         let text = logger.exportText(filter: enabledLevels)
         UIPasteboard.general.string = text
 
@@ -171,5 +180,5 @@ struct LoggerView: View {
 }
 
 #Preview {
-    LoggerView(isExpanded: .constant(true))
+    LoggerView(isExpanded: .constant(true), logger: .shared, soundPlayer: SoundPlayer.shared)
 }

@@ -22,15 +22,17 @@ struct ContentView: View {
             VStack(alignment: .leading) {
               StatusBannerView(isStatusBannerExpanded: $isStatusBannerExpanded,
                                controller: controller,
-                               onResetTapped: { controller.resetSession(using: settings) })
+                               onResetTapped: { controller.resetSession(using: settings) },
+                               soundPlayer: SoundPlayer.shared)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 ConfigurationPanelView(
                     isExpanded: $isConfigPanelExpanded,
                     settings: settings,
-                    controller: controller
+                    controller: controller,
+                    soundPlayer: SoundPlayer.shared
                 )
-                LoggerView(isExpanded: $isLoggerExpanded)
+                LoggerView(isExpanded: $isLoggerExpanded, logger: .shared, soundPlayer: SoundPlayer.shared)
                 Spacer()
                 Spacer()
             }

@@ -9,15 +9,14 @@ struct ConfigurationPanelView: View {
     @Binding var isExpanded: Bool
     @ObservedObject var settings: ARSettings
     @ObservedObject var controller: ARSessionController
-
-    private let panelAnimation = Animation.spring(response: 0.4, dampingFraction: 0.84)
+    let soundPlayer: SoundPlaying
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
                 Button {
-                    SoundPlayer.play(isExpanded ? .shrink : .expand)
-                    withAnimation(panelAnimation) {
+                    soundPlayer.play(isExpanded ? .shrink : .expand)
+                    withAnimation(PanelStyle.configAnimation) {
                         isExpanded.toggle()
                     }
                 } label: {
@@ -29,9 +28,9 @@ struct ConfigurationPanelView: View {
                         Image(systemName: "gear.circle.fill")
                             .font(.title3.weight(.semibold))
                             .foregroundStyle(.blue)
-                            .padding(.leading, 8)
-                            .padding(.trailing, 12)
-                            .padding(.vertical, 12)
+                            .padding(.leading, PanelStyle.headerIconLeading)
+                            .padding(.trailing, PanelStyle.headerIconTrailing)
+                            .padding(.vertical, PanelStyle.headerIconVertical)
                     }
                 }
                 .buttonStyle(.plain)
@@ -69,20 +68,20 @@ struct ConfigurationPanelView: View {
         .background(
             .ultraThinMaterial,
             in: isExpanded
-            ? AnyShape(RoundedRectangle(cornerRadius: 14))
-            : AnyShape(UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0, bottomTrailingRadius: 22, topTrailingRadius: 22))
+            ? AnyShape(RoundedRectangle(cornerRadius: PanelStyle.configExpandedCornerRadius))
+            : AnyShape(UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0, bottomTrailingRadius: PanelStyle.collapsedTrailingRadius, topTrailingRadius: PanelStyle.collapsedTrailingRadius))
         )
         .frame(maxWidth: .infinity, alignment: .leading)
-        .offset(x: isExpanded ? 0 : -16)
-        .animation(panelAnimation, value: isExpanded)
-        .onChange(of: settings.detectHorizontalPlanes) { _ in SoundPlayer.play(.toggle) }
-        .onChange(of: settings.detectVerticalPlanes) { _ in SoundPlayer.play(.toggle) }
-        .onChange(of: settings.showPlaneOverlays) { _ in SoundPlayer.play(.toggle) }
-        .onChange(of: settings.showPlaneLabels) { _ in SoundPlayer.play(.toggle) }
-        .onChange(of: settings.showMeshOverlays) { _ in SoundPlayer.play(.toggle) }
-        .onChange(of: settings.classifyMeshes) { _ in SoundPlayer.play(.toggle) }
-        .onChange(of: settings.peopleOcclusion) { _ in SoundPlayer.play(.toggle) }
-        .onChange(of: settings.planeSelectionMode) { _ in SoundPlayer.play(.toggle) }
+        .offset(x: isExpanded ? 0 : PanelStyle.collapsedOffsetX)
+        .animation(PanelStyle.configAnimation, value: isExpanded)
+        .onChange(of: settings.detectHorizontalPlanes) { _ in soundPlayer.play(.toggle) }
+        .onChange(of: settings.detectVerticalPlanes) { _ in soundPlayer.play(.toggle) }
+        .onChange(of: settings.showPlaneOverlays) { _ in soundPlayer.play(.toggle) }
+        .onChange(of: settings.showPlaneLabels) { _ in soundPlayer.play(.toggle) }
+        .onChange(of: settings.showMeshOverlays) { _ in soundPlayer.play(.toggle) }
+        .onChange(of: settings.classifyMeshes) { _ in soundPlayer.play(.toggle) }
+        .onChange(of: settings.peopleOcclusion) { _ in soundPlayer.play(.toggle) }
+        .onChange(of: settings.planeSelectionMode) { _ in soundPlayer.play(.toggle) }
     }
 }
 
@@ -90,6 +89,7 @@ struct ConfigurationPanelView: View {
     ConfigurationPanelView(
         isExpanded: .constant(true),
         settings: ARSettings(),
-        controller: ARSessionController()
+        controller: ARSessionController(),
+        soundPlayer: SoundPlayer.shared
     )
 }
