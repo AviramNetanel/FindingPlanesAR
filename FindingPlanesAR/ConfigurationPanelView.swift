@@ -34,20 +34,6 @@ struct ConfigurationPanelView: View {
                     }
                 }
                 .buttonStyle(.plain)
-
-                if isExpanded {
-                    Spacer()
-
-                    Button {
-                        controller.resetSession(using: settings)
-                    } label: {
-                        Image(systemName: "arrow.counterclockwise.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(.blue)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Reset")
-                }
             }
 
             if isExpanded {

@@ -12,6 +12,7 @@ struct ContentView: View {
     @StateObject private var controller = ARSessionController()
     @State private var isStatusBannerExpanded = true
     @State private var isConfigPanelExpanded = true
+    @State private var isLoggerExpanded = true
 
     var body: some View {
         ZStack {
@@ -20,7 +21,8 @@ struct ContentView: View {
 
             VStack(alignment: .leading) {
               StatusBannerView(isStatusBannerExpanded: $isStatusBannerExpanded,
-                               controller: controller)
+                               controller: controller,
+                               onResetTapped: { controller.resetSession(using: settings) })
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 ConfigurationPanelView(
@@ -28,6 +30,7 @@ struct ContentView: View {
                     settings: settings,
                     controller: controller
                 )
+                LoggerView(isExpanded: $isLoggerExpanded)
                 Spacer()
                 Spacer()
             }

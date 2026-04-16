@@ -23,6 +23,7 @@ final class ARSessionController: NSObject, ObservableObject {
     @Published private(set) var isVioInitialized: Bool = false
 
     private weak var arView: ARView?
+    private let logger = LoggerStore.shared
     private var planeEntities: [UUID: ModelEntity] = [:]
     private var planeAnchorEntities: [UUID: AnchorEntity] = [:]
     private var planeLabelEntities: [UUID: ModelEntity] = [:]
@@ -30,6 +31,8 @@ final class ARSessionController: NSObject, ObservableObject {
     private var showPlaneOverlays: Bool = true
     private var showPlaneLabels: Bool = true
     private var lastSessionSnapshot: SessionSettingsSnapshot?
+    private var lastLoggedMapStateText: String?
+    private var lastLoggedTrackingStateText: String?
 
     private struct SessionSettingsSnapshot: Equatable {
         let detectHorizontalPlanes: Bool
@@ -74,6 +77,7 @@ final class ARSessionController: NSObject, ObservableObject {
 
         if settings.peopleOcclusion, ARWorldTrackingConfiguration.supportsFrameSemantics(.personSegmentationWithDepth) {
             publishStatusText("Session running (people occlusion on)")
+            logger.log(.info, "People occlusion enabled")
         }
 
         let configuration = ARWorldTrackingConfiguration()
@@ -89,12 +93,15 @@ final class ARSessionController: NSObject, ObservableObject {
             if ARWorldTrackingConfiguration.supportsSceneReconstruction(.meshWithClassification) {
                 configuration.sceneReconstruction = .meshWithClassification
                 publishMeshStateText("Mesh: Available")
+                logger.log(.info, "Mesh reconstruction with classification enabled")
             } else if ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
                 configuration.sceneReconstruction = .mesh
                 publishMeshStateText("Mesh: Available")
+                logger.log(.info, "Mesh reconstruction enabled")
             } else {
                 configuration.sceneReconstruction = []
                 publishMeshStateText("Mesh: Unavailable on this device")
+                logger.log(.warning, "Mesh reconstruction unavailable on this device")
             }
         } else {
             configuration.sceneReconstruction = []
@@ -110,6 +117,7 @@ final class ARSessionController: NSObject, ObservableObject {
 
         let detectionMode = settings.planeSelectionMode == .existing ? "existing" : "estimated"
         publishStatusText("Session running (\(detectionMode) planes)")
+        logger.log(.info, "AR session started (\(detectionMode) planes)")
 
         for entity in planeEntities.values {
             entity.isEnabled = showPlaneOverlays
@@ -303,8 +311,8 @@ final class ARSessionController: NSObject, ObservableObject {
             vioStateText = "VIO: Ready"
             isTrackingStateGood = true
             isVioInitialized = true
-        case .limited:
-            trackingStateText = "Tracking: Limited"
+        case .limited(let reason):
+            trackingStateText = "Tracking: Limited (\(trackingReasonText(for: reason)))"
             vioStateText = "VIO: No"
             isTrackingStateGood = false
             isVioInitialized = false
@@ -315,7 +323,44 @@ final class ARSessionController: NSObject, ObservableObject {
             isVioInitialized = false
         }
 
+        logStateChangesIfNeeded()
+
         updateLabelFacing(with: frame)
+    }
+
+    private func trackingReasonText(for reason: ARCamera.TrackingState.Reason) -> String {
+        switch reason {
+        case .initializing:
+            return "initializing"
+        case .excessiveMotion:
+            return "excessive motion"
+        case .insufficientFeatures:
+            return "insufficient features"
+        case .relocalizing:
+            return "relocalizing"
+        @unknown default:
+            return "unknown"
+        }
+    }
+
+    private func logStateChangesIfNeeded() {
+        if mapStateText != lastLoggedMapStateText {
+            if isMapStateGood {
+                logger.log(.info, mapStateText)
+            } else {
+                logger.log(.warning, mapStateText)
+            }
+            lastLoggedMapStateText = mapStateText
+        }
+
+        if trackingStateText != lastLoggedTrackingStateText {
+            if isTrackingStateGood {
+                logger.log(.info, trackingStateText)
+            } else {
+                logger.log(.warning, trackingStateText)
+            }
+            lastLoggedTrackingStateText = trackingStateText
+        }
     }
 
     private func updateLabelFacing(with frame: ARFrame) {
@@ -398,6 +443,24 @@ extension ARSessionController: ARSessionDelegate {
     nonisolated func session(_ session: ARSession, didUpdate frame: ARFrame) {
         Task { @MainActor in
             updateFrameDiagnostics(with: frame)
+        }
+    }
+
+    nonisolated func session(_ session: ARSession, didFailWithError error: Error) {
+        Task { @MainActor in
+            logger.log(.error, "AR session failed: \(error.localizedDescription)")
+        }
+    }
+
+    nonisolated func sessionWasInterrupted(_ session: ARSession) {
+        Task { @MainActor in
+            logger.log(.warning, "AR session interrupted")
+        }
+    }
+
+    nonisolated func sessionInterruptionEnded(_ session: ARSession) {
+        Task { @MainActor in
+            logger.log(.info, "AR session interruption ended")
         }
     }
 }

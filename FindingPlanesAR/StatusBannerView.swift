@@ -13,35 +13,48 @@ struct StatusBannerView: View {
   @Binding var isStatusBannerExpanded : Bool
   
   @ObservedObject var controller: ARSessionController
+  let onResetTapped: () -> Void
   @StateObject private var diagnostics = StatusBannerDiagnosticsViewModel()
   
   private let panelAnimation = Animation.spring(response: 0.36, dampingFraction: 0.82)
   
   var body: some View {
     VStack(alignment: .leading, spacing: isStatusBannerExpanded ? 8 : 6) {
-      Button {
-        withAnimation(panelAnimation) {
-          isStatusBannerExpanded.toggle()
+      HStack(spacing: 8) {
+        Button {
+          withAnimation(panelAnimation) {
+            isStatusBannerExpanded.toggle()
+          }
         }
-      }
-      label: {
+        label: {
+          if isStatusBannerExpanded {
+            Label("Live Info", systemImage: "info.circle")
+              .font(.headline)
+              .foregroundStyle(.blue)
+          } else {
+            Image(systemName: "info.circle.fill")
+              .font(.title3.weight(.semibold))
+              .foregroundStyle(.blue)
+              .padding(.leading, 8)
+              .padding(.trailing, 12)
+              .padding(.vertical, 12)
+              .background(.ultraThinMaterial, in: UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0, bottomTrailingRadius: 22, topTrailingRadius: 22))
+              .shadow(color: .black.opacity(0.18), radius: 8, y: 4)
+          }
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+
         if isStatusBannerExpanded {
-          Label("Live Info", systemImage: "info.circle")
-            .font(.headline)
-            .foregroundStyle(.blue)
-        } else {
-          Image(systemName: "info.circle.fill")
-            .font(.title3.weight(.semibold))
-            .foregroundStyle(.blue)
-            .padding(.leading, 8)
-            .padding(.trailing, 12)
-            .padding(.vertical, 12)
-            .background(.ultraThinMaterial, in: UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0, bottomTrailingRadius: 22, topTrailingRadius: 22))
-            .shadow(color: .black.opacity(0.18), radius: 8, y: 4)
+          Button(action: onResetTapped) {
+            Image(systemName: "arrow.counterclockwise.circle.fill")
+              .font(.title3)
+              .foregroundStyle(.blue)
+          }
+          .buttonStyle(.plain)
+          .accessibilityLabel("Reset")
         }
       }
-      .buttonStyle(.plain)
-      .frame(maxWidth: .infinity, alignment: .leading)
       
       if isStatusBannerExpanded {
         VStack(alignment: .leading, spacing: 8) {
@@ -77,12 +90,8 @@ struct StatusBannerView: View {
                 Image(systemName: "memorychip")
               }
             }
-            
+
             Spacer()
-            Divider()
-              .frame(maxWidth: 2, maxHeight: 80)
-            Spacer()
-            
             
             VStack(alignment: .trailing, spacing: 8) {
               indicatorChip(title: controller.mapStateText, isGood: controller.isMapStateGood)
@@ -182,5 +191,6 @@ private final class StatusBannerDiagnosticsViewModel: ObservableObject {
   let controller = ARSessionController()
   
   StatusBannerView(isStatusBannerExpanded: .constant(true),
-                   controller: controller)
+                   controller: controller,
+                   onResetTapped: {})
 }
