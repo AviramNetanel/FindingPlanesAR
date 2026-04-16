@@ -16,6 +16,7 @@ struct ConfigurationPanelView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
                 Button {
+                    SoundPlayer.play(isExpanded ? .shrink : .expand)
                     withAnimation(panelAnimation) {
                         isExpanded.toggle()
                     }
@@ -74,6 +75,14 @@ struct ConfigurationPanelView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .offset(x: isExpanded ? 0 : -16)
         .animation(panelAnimation, value: isExpanded)
+        .onChange(of: settings.detectHorizontalPlanes) { _ in SoundPlayer.play(.toggle) }
+        .onChange(of: settings.detectVerticalPlanes) { _ in SoundPlayer.play(.toggle) }
+        .onChange(of: settings.showPlaneOverlays) { _ in SoundPlayer.play(.toggle) }
+        .onChange(of: settings.showPlaneLabels) { _ in SoundPlayer.play(.toggle) }
+        .onChange(of: settings.showMeshOverlays) { _ in SoundPlayer.play(.toggle) }
+        .onChange(of: settings.classifyMeshes) { _ in SoundPlayer.play(.toggle) }
+        .onChange(of: settings.peopleOcclusion) { _ in SoundPlayer.play(.toggle) }
+        .onChange(of: settings.planeSelectionMode) { _ in SoundPlayer.play(.toggle) }
     }
 }
 

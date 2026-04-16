@@ -22,6 +22,7 @@ struct LoggerView: View {
         VStack(alignment: .leading, spacing: isExpanded ? 8 : 6) {
             HStack(spacing: 8) {
                 Button {
+                    SoundPlayer.play(isExpanded ? .shrink : .expand)
                     withAnimation(panelAnimation) {
                         isExpanded.toggle()
                     }
@@ -47,6 +48,9 @@ struct LoggerView: View {
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .scaleEffect(0.8)
+                        .onChange(of: logger.isEnabled) { _ in
+                            SoundPlayer.play(.toggle)
+                        }
                 }
             }
 
@@ -59,6 +63,7 @@ struct LoggerView: View {
                     Spacer(minLength: 8)
 
                     Button {
+                        SoundPlayer.play(.trash)
                         logger.clear()
                     } label: {
                         Image(systemName: "trash")
@@ -126,6 +131,7 @@ struct LoggerView: View {
 
     private func levelToggle(_ level: LoggerStore.Level) -> some View {
         Button {
+            SoundPlayer.play(.toggle)
             if enabledLevels.contains(level) {
                 enabledLevels.remove(level)
             } else {
@@ -152,6 +158,7 @@ struct LoggerView: View {
     }
 
     private func copyLogs() {
+        SoundPlayer.play(.copy)
         let text = logger.exportText(filter: enabledLevels)
         UIPasteboard.general.string = text
 

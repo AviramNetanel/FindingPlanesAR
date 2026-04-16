@@ -22,6 +22,7 @@ struct StatusBannerView: View {
     VStack(alignment: .leading, spacing: isStatusBannerExpanded ? 8 : 6) {
       HStack(spacing: 8) {
         Button {
+          SoundPlayer.play(isStatusBannerExpanded ? .shrink : .expand)
           withAnimation(panelAnimation) {
             isStatusBannerExpanded.toggle()
           }
@@ -46,7 +47,10 @@ struct StatusBannerView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
 
         if isStatusBannerExpanded {
-          Button(action: onResetTapped) {
+          Button {
+            SoundPlayer.play(.reset)
+            onResetTapped()
+          } label: {
             Image(systemName: "arrow.counterclockwise.circle.fill")
               .font(.title3)
               .foregroundStyle(.blue)
