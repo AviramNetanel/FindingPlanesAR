@@ -18,6 +18,7 @@ final class ARSessionController: NSObject, ObservableObject {
     @Published private(set) var mapStateText: String = "Map: Limited"
     @Published private(set) var trackingStateText: String = "Tracking: Limited"
     @Published private(set) var vioStateText: String = "VIO: No"
+    @Published private(set) var frameRateText: String = "--"
     @Published private(set) var isMapStateGood: Bool = false
     @Published private(set) var isTrackingStateGood: Bool = false
     @Published private(set) var isVioInitialized: Bool = false
@@ -30,6 +31,8 @@ final class ARSessionController: NSObject, ObservableObject {
     private var showPlaneOverlays: Bool = true
     private var showPlaneLabels: Bool = true
     private var lastSessionSnapshot: SessionSettingsSnapshot?
+    private var lastFrameTimestamp: TimeInterval?
+    private var smoothedFrameRate: Double?
 
     private struct SessionSettingsSnapshot: Equatable {
         let detectHorizontalPlanes: Bool
@@ -88,7 +91,7 @@ final class ARSessionController: NSObject, ObservableObject {
         if settings.showMeshOverlays || settings.classifyMeshes {
             if ARWorldTrackingConfiguration.supportsSceneReconstruction(.meshWithClassification) {
                 configuration.sceneReconstruction = .meshWithClassification
-                publishMeshStateText("Mesh: Available (classified)")
+                publishMeshStateText("Mesh: Available")
             } else if ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
                 configuration.sceneReconstruction = .mesh
                 publishMeshStateText("Mesh: Available")
@@ -153,6 +156,9 @@ final class ARSessionController: NSObject, ObservableObject {
         meshAnchorIDs.removeAll()
         publishCounts(planes: 0, meshes: 0)
         lastSessionSnapshot = nil
+        lastFrameTimestamp = nil
+        smoothedFrameRate = nil
+        frameRateText = "--"
     }
 
     private func createOrUpdatePlaneEntity(for planeAnchor: ARPlaneAnchor) {
@@ -279,6 +285,8 @@ final class ARSessionController: NSObject, ObservableObject {
     }
 
     private func updateFrameDiagnostics(with frame: ARFrame) {
+        updateFrameRate(with: frame)
+
         switch frame.worldMappingStatus {
         case .mapped:
             mapStateText = "Map: Good"
@@ -316,6 +324,29 @@ final class ARSessionController: NSObject, ObservableObject {
         }
 
         updateLabelFacing(with: frame)
+    }
+
+    private func updateFrameRate(with frame: ARFrame) {
+        defer { lastFrameTimestamp = frame.timestamp }
+
+        guard let lastFrameTimestamp else {
+            frameRateText = "--"
+            return
+        }
+
+        let delta = frame.timestamp - lastFrameTimestamp
+        guard delta > 0 else { return }
+
+        let instantFrameRate = 1 / delta
+        let blendedFrameRate: Double
+        if let smoothedFrameRate {
+            blendedFrameRate = (smoothedFrameRate * 0.85) + (instantFrameRate * 0.15)
+        } else {
+            blendedFrameRate = instantFrameRate
+        }
+
+        smoothedFrameRate = blendedFrameRate
+        frameRateText = String(Int(blendedFrameRate.rounded()))
     }
 
     private func updateLabelFacing(with frame: ARFrame) {

@@ -10,100 +10,113 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var settings = ARSettings()
     @StateObject private var controller = ARSessionController()
-    @State private var isPanelVisible = true
+    @State private var isStatusBannerExpanded = true
+    @State private var isConfigPanelExpanded = true
+    private let panelAnimation = Animation.spring(response: 0.4, dampingFraction: 0.84)
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
+        ZStack {
             ARViewContainer(settings: settings, controller: controller)
                 .ignoresSafeArea()
 
-            VStack(spacing: 8) {
-                statusBanner
-                if isPanelVisible {
-                    configPanel
-                }
+            VStack(alignment: .leading) {
+              StatusBannerView(isStatusBannerExpanded: $isStatusBannerExpanded,
+                               controller: controller)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                configPanel
+                Spacer()
+                Spacer()
             }
             .padding()
         }
     }
 
-    private var statusBanner: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Label("\(controller.meshCount)", systemImage: "arrowtriangle.up")
-                    Label("\(controller.planesDetectedCount)", systemImage: "square.stack.3d.up")
-                }
-
-                Spacer(minLength: 12)
-
-                Button(isPanelVisible ? "Hide Panel" : "Show Panel") {
-                    isPanelVisible.toggle()
-                }
-            }
-
-            Text(controller.meshStateText)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-
-            HStack(spacing: 10) {
-                indicatorChip(title: controller.mapStateText, isGood: controller.isMapStateGood)
-                indicatorChip(title: controller.trackingStateText, isGood: controller.isTrackingStateGood)
-                indicatorChip(title: controller.vioStateText, isGood: controller.isVioInitialized)
-            }
-        }
-        .font(.caption)
-        .padding(10)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-    }
-
     private var configPanel: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Configuration")
-                .font(.headline)
+            HStack(spacing: 10) {
+                Button {
+                    withAnimation(panelAnimation) {
+                        isConfigPanelExpanded.toggle()
+                    }
+                } label: {
+                    if isConfigPanelExpanded {
+                        Label("Configuration", systemImage: "gear")
+                            .font(.headline)
+                            .foregroundStyle(.blue)
+                    } else {
+                        Image(systemName: "gear.circle.fill")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(.blue)
+                            .padding(.leading, 8)
+                            .padding(.trailing, 12)
+                            .padding(.vertical, 12)
+                    }
+                }
+                .buttonStyle(.plain)
 
-            Picker("Plane Mode", selection: $settings.planeSelectionMode) {
-                ForEach(PlaneSelectionMode.allCases) { mode in
-                    Text(mode.displayName).tag(mode)
+                if isConfigPanelExpanded {
+                    Spacer()
+
+                    Button {
+                        controller.resetSession(using: settings)
+                    } label: {
+                        Image(systemName: "arrow.counterclockwise.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(.blue)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Reset")
                 }
             }
-            .pickerStyle(.segmented)
 
-            Toggle("Detect Horizontal", isOn: $settings.detectHorizontalPlanes)
-            Toggle("Detect Vertical", isOn: $settings.detectVerticalPlanes)
-            Toggle("Show Colored Planes", isOn: $settings.showPlaneOverlays)
-            Toggle("Show Plane Labels", isOn: $settings.showPlaneLabels)
+            if isConfigPanelExpanded {
+                Picker("Plane Mode", selection: $settings.planeSelectionMode) {
+                    ForEach(PlaneSelectionMode.allCases) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
 
-            Toggle("Show Mesh Overlay", isOn: $settings.showMeshOverlays)
-                .disabled(!settings.isMeshSupported)
-            Toggle("Classify Mesh", isOn: $settings.classifyMeshes)
-                .disabled(!settings.isMeshSupported)
+                Toggle("Detect Horizontal", isOn: $settings.detectHorizontalPlanes)
+                Toggle("Detect Vertical", isOn: $settings.detectVerticalPlanes)
+                Toggle("Show Colored Planes", isOn: $settings.showPlaneOverlays)
+                Toggle("Show Plane Labels", isOn: $settings.showPlaneLabels)
 
-            Toggle("People Occlusion", isOn: $settings.peopleOcclusion)
+                Toggle("Show Mesh Overlay", isOn: $settings.showMeshOverlays)
+                    .disabled(!settings.isMeshSupported)
+                Toggle("Classify Mesh", isOn: $settings.classifyMeshes)
+                    .disabled(!settings.isMeshSupported)
 
-            Button("Reset Session") {
-                controller.resetSession(using: settings)
+                Toggle("People Occlusion", isOn: $settings.peopleOcclusion)
+
+                Text(controller.statusText)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .transition(.move(edge: .leading).combined(with: .opacity))
             }
-            .buttonStyle(.borderedProminent)
-
-            Text(controller.statusText)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
         }
         .font(.subheadline)
-        .padding(12)
-        .frame(maxWidth: 360)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .padding(isConfigPanelExpanded ? 12 : 0)
+        .frame(maxWidth: isConfigPanelExpanded ? 360 : nil)
+        .background(
+            .ultraThinMaterial,
+            in: isConfigPanelExpanded
+            ? AnyShape(RoundedRectangle(cornerRadius: 14))
+            : AnyShape(UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0, bottomTrailingRadius: 22, topTrailingRadius: 22))
+        )
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .offset(x: isConfigPanelExpanded ? 0 : -16)
+        .animation(panelAnimation, value: isConfigPanelExpanded)
     }
 
-    private func indicatorChip(title: String, isGood: Bool) -> some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(isGood ? Color.green : Color.red)
-                .frame(width: 8, height: 8)
-            Text(title)
-                .lineLimit(1)
-        }
-    }
+
+
+
 }
 
+//MARK: -
+
+#Preview {
+  ContentView()
+}
