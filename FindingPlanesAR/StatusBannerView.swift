@@ -6,11 +6,15 @@
 //
 
 import SwiftUI
+import Combine
 
 struct StatusBannerView: View {
   
   @Binding var isStatusBannerExpanded : Bool
+  
   @ObservedObject var controller: ARSessionController
+  @StateObject private var diagnostics = StatusBannerDiagnosticsViewModel()
+  
   private let panelAnimation = Animation.spring(response: 0.36, dampingFraction: 0.82)
   
   var body: some View {
@@ -56,9 +60,21 @@ struct StatusBannerView: View {
               }
               
               Label {
-                Text("\(controller.frameRateText) FPS")
+                Text("\(diagnostics.frameRateText) FPS")
               } icon: {
                 Image(systemName: "gauge.with.dots.needle.33percent")
+              }
+
+              Label {
+                Text("CPU \(diagnostics.cpuUsageText)")
+              } icon: {
+                Image(systemName: "cpu")
+              }
+
+              Label {
+                Text("Memory \(diagnostics.memoryUsageText)")
+              } icon: {
+                Image(systemName: "memorychip")
               }
             }
             
@@ -127,6 +143,39 @@ struct StatusBannerView: View {
           .frame(width: size, height: size)
   }
   
+}
+
+@MainActor
+private final class StatusBannerDiagnosticsViewModel: ObservableObject {
+  @Published private(set) var frameRateText: String = "--"
+  @Published private(set) var cpuUsageText: String = "--"
+  @Published private(set) var memoryUsageText: String = "--"
+
+  private let fpsMonitor = FPSMonitor()
+  private var timer: Timer?
+
+  init() {
+    refresh()
+    timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+      Task { @MainActor [weak self] in
+        self?.refresh()
+      }
+    }
+  }
+
+  deinit {
+    timer?.invalidate()
+  }
+
+  private func refresh() {
+    frameRateText = String(Int(FPSMonitor.currentFps.rounded()))
+    let current = Diagnostics.current()
+    cpuUsageText = String(format: "%.0f%%", current.cpuUsage)
+
+    let memory = current.memory
+    let memoryPercent = memory.1 > 0 ? (Double(memory.0) / Double(memory.1)) * 100 : 0
+    memoryUsageText = String(format: "%.0f%% (%llu/%llu MB)", memoryPercent, memory.0, memory.1)
+  }
 }
 
 #Preview {
