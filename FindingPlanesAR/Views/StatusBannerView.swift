@@ -174,7 +174,8 @@ private final class StatusBannerDiagnosticsViewModel: ObservableObject {
   @Published private(set) var memoryUsageText: String = "--"
 
   private let fpsMonitor = FPSMonitor()
-  private var timer: Timer?
+  /// Scheduled on the main run loop; `deinit` is nonisolated, so this must be `nonisolated(unsafe)` to invalidate there.
+  nonisolated(unsafe) private var timer: Timer?
 
   init() {
     refresh()

@@ -391,7 +391,12 @@ final class ARSessionController: NSObject, ObservableObject {
             cameraTransform.columns.3.z
         )
         for label in planeLabelEntities.values where label.isEnabled {
-            label.look(at: cameraPosition, from: label.position(relativeTo: nil), relativeTo: nil, forward: .positiveZ)
+            label.look(
+                at: cameraPosition,
+                from: label.position(relativeTo: nil),
+                upVector: SIMD3<Float>(0, 1, 0),
+                relativeTo: nil
+            )
         }
     }
 

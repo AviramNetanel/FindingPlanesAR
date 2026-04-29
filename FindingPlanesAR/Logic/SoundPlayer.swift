@@ -31,8 +31,16 @@ enum AppSound {
     }
 }
 
-enum SoundPlayer {
-    static func play(_ sound: AppSound) {
+protocol SoundPlaying {
+    func play(_ sound: AppSound)
+}
+
+struct SystemSoundPlayer: SoundPlaying {
+    func play(_ sound: AppSound) {
         AudioServicesPlaySystemSound(sound.systemSoundID)
     }
+}
+
+enum SoundPlayer {
+    static let shared: SoundPlaying = SystemSoundPlayer()
 }
