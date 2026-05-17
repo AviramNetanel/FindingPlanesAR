@@ -70,9 +70,23 @@ struct StatusBannerView: View {
               }
 
               Label {
-                Text("\(controller.meshCount) Mesh Objects")
+                Text("\(controller.meshCount) Mesh Anchors")
               } icon: {
                 Image(systemName: "arrowtriangle.up")
+              }
+
+              Label {
+                Text(controller.detectedMeshSemanticsText)
+              } icon: {
+                Image(systemName: "cube.transparent")
+              }
+
+              if let tappedMesh = controller.lastTappedMeshClassText {
+                Label {
+                  Text("Tap: \(tappedMesh)")
+                } icon: {
+                  Image(systemName: "hand.tap")
+                }
               }
               
               Label {
@@ -84,9 +98,45 @@ struct StatusBannerView: View {
               Divider()
               
               Label {
-                Text("\(diagnostics.frameRateText) FPS")
+                Text("Display \(diagnostics.frameRateText) fps")
               } icon: {
                 Image(systemName: "gauge.with.dots.needle.33percent")
+              }
+
+              Label {
+                Text(controller.arFPSText)
+              } icon: {
+                Image(systemName: "camera.viewfinder")
+              }
+
+              Label {
+                Text(controller.frameIntervalMsText)
+              } icon: {
+                Image(systemName: "timer")
+              }
+
+              Label {
+                Text(controller.featurePointsText)
+              } icon: {
+                Image(systemName: "sparkles")
+              }
+
+              Label {
+                Text(controller.meshDriftText)
+              } icon: {
+                Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
+              }
+
+              Label {
+                Text(controller.meshUpdateHzText)
+              } icon: {
+                Image(systemName: "rotate.3d")
+              }
+
+              Label {
+                Text(controller.performanceGradeText)
+              } icon: {
+                Image(systemName: "checkmark.seal")
               }
 
               Label {
@@ -108,6 +158,8 @@ struct StatusBannerView: View {
               indicatorChip(title: controller.mapStateText, isGood: controller.isMapStateGood)
               indicatorChip(title: controller.trackingStateText, isGood: controller.isTrackingStateGood)
               indicatorChip(title: controller.vioStateText, isGood: controller.isVioInitialized)
+              indicatorChip(title: controller.meshDriftText, isGood: controller.isMeshDriftGood)
+              indicatorChip(title: controller.performanceGradeText, isGood: controller.isPerformanceGradeGood)
               
               Text(controller.meshStateText)
                 .font(.caption2)
@@ -125,6 +177,8 @@ struct StatusBannerView: View {
           statusDot(isGood: controller.isMapStateGood, size: 10)
           statusDot(isGood: controller.isTrackingStateGood, size: 10)
           statusDot(isGood: controller.isVioInitialized, size: 10)
+          statusDot(isGood: controller.isMeshDriftGood, size: 10)
+          statusDot(isGood: controller.isPerformanceGradeGood, size: 10)
         }
         .padding(.leading, 10)
         .padding(.trailing, 12)

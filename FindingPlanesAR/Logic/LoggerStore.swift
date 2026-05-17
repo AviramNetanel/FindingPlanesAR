@@ -36,9 +36,11 @@ final class LoggerStore: ObservableObject, Logging {
 
     func log(_ level: Level, _ message: String) {
         guard isEnabled else { return }
-        entries.append(Entry(timestamp: Date(), level: level, message: message))
-        if entries.count > maxEntries {
-            entries.removeFirst(entries.count - maxEntries)
+        Task { @MainActor in
+            entries.append(Entry(timestamp: Date(), level: level, message: message))
+            if entries.count > maxEntries {
+                entries.removeFirst(entries.count - maxEntries)
+            }
         }
     }
 

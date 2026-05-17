@@ -6,7 +6,7 @@
 import ARKit
 import Combine
 import RealityKit
-import UIKit
+//import UIKit
 
 @MainActor
 final class ARSessionController: NSObject, ObservableObject {
@@ -14,6 +14,11 @@ final class ARSessionController: NSObject, ObservableObject {
     @Published private(set) var planeCount: Int = 0
     @Published private(set) var meshStateText: String = "Mesh: Unknown"
     @Published private(set) var meshCount: Int = 0
+    @Published private(set) var meshClassCounts: [ARMeshClassification: Int] = [:]
+    @Published private(set) var detectedMeshSemantics: [String] = []
+    @Published private(set) var detectedMeshSemanticsText: String = "—"
+    @Published private(set) var lastTappedMeshClass: ARMeshClassification?
+    @Published private(set) var lastTappedMeshClassText: String?
     @Published private(set) var userObjectCount: Int = 0
     @Published private(set) var planesDetectedCount: Int = 0
     @Published private(set) var mapStateText: String = "Map: Limited"
@@ -22,19 +27,37 @@ final class ARSessionController: NSObject, ObservableObject {
     @Published private(set) var isMapStateGood: Bool = false
     @Published private(set) var isTrackingStateGood: Bool = false
     @Published private(set) var isVioInitialized: Bool = false
+    @Published private(set) var arFPSText: String = "AR: — fps"
+    @Published private(set) var frameIntervalMsText: String = "Frame: — ms"
+    @Published private(set) var featurePointsText: String = "Features: —"
+    @Published private(set) var meshDriftText: String = "Drift: —"
+    @Published private(set) var meshUpdateHzText: String = "Mesh updates: —/s"
+    @Published private(set) var performanceGradeText: String = "Quality: —"
+    @Published private(set) var isMeshDriftGood: Bool = true
+    @Published private(set) var isPerformanceGradeGood: Bool = false
 
     private weak var arView: ARView?
+    private let performanceMonitor = ARPerformanceMonitor()
     private let logger: Logging
     private var planeEntities: [UUID: ModelEntity] = [:]
     private var planeAnchorEntities: [UUID: AnchorEntity] = [:]
     private var planeLabelEntities: [UUID: ModelEntity] = [:]
     private var userObjectAnchors: [AnchorEntity] = []
     private var meshAnchorIDs: Set<UUID> = []
+    private var meshAnchors: [UUID: ARMeshAnchor] = [:]
+    private var meshSummaries: [UUID: MeshAnchorClassificationSummary] = [:]
+    private var loggedMeshSemantics: Set<ARMeshClassification> = []
+    private var meshAggregationPending = false
+    private var lastMeshAggregationTime: TimeInterval = 0
+    private let meshAggregationInterval: TimeInterval = 0.5
+    private var isMeshClassificationEnabled = false
     private var showPlaneOverlays: Bool = true
     private var showPlaneLabels: Bool = true
     private var lastSessionSnapshot: SessionSettingsSnapshot?
     private var lastLoggedMapStateText: String?
     private var lastLoggedTrackingStateText: String?
+    private var lastPerformanceWarningTime: TimeInterval = 0
+    private let performanceWarningInterval: TimeInterval = 5
 
     private struct SessionSettingsSnapshot: Equatable {
         let detectHorizontalPlanes: Bool
@@ -99,19 +122,23 @@ final class ARSessionController: NSObject, ObservableObject {
         if settings.showMeshOverlays || settings.classifyMeshes {
             if ARWorldTrackingConfiguration.supportsSceneReconstruction(.meshWithClassification) {
                 configuration.sceneReconstruction = .meshWithClassification
-                publishMeshStateText("Mesh: Available")
+                isMeshClassificationEnabled = true
+                publishMeshStateText("Mesh: Available (classified)")
                 logger.log(.info, "Mesh reconstruction with classification enabled")
             } else if ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
                 configuration.sceneReconstruction = .mesh
+                isMeshClassificationEnabled = false
                 publishMeshStateText("Mesh: Available")
                 logger.log(.info, "Mesh reconstruction enabled")
             } else {
                 configuration.sceneReconstruction = []
+                isMeshClassificationEnabled = false
                 publishMeshStateText("Mesh: Unavailable on this device")
                 logger.log(.warning, "Mesh reconstruction unavailable on this device")
             }
         } else {
             configuration.sceneReconstruction = []
+            isMeshClassificationEnabled = false
             publishMeshStateText(settings.isMeshSupported ? "Mesh: Disabled" : "Mesh: Unavailable on this device")
         }
 
@@ -152,6 +179,20 @@ final class ARSessionController: NSObject, ObservableObject {
         arView.scene.addAnchor(anchor)
         userObjectAnchors.append(anchor)
         publishUserObjectCount(userObjectAnchors.count)
+
+        let worldPosition = SIMD3<Float>(
+            result.worldTransform.columns.3.x,
+            result.worldTransform.columns.3.y,
+            result.worldTransform.columns.3.z
+        )
+        if let meshClassification = MeshClassificationAnalyzer.classification(
+            near: worldPosition,
+            meshAnchors: Array(meshAnchors.values)
+        ) {
+            lastTappedMeshClass = meshClassification
+            lastTappedMeshClassText = meshClassification.displayName
+            logger.log(.info, "Mesh surface at tap: \(meshClassification.displayName)")
+        }
     }
 
     private func clearPlaneEntities() {
@@ -172,9 +213,17 @@ final class ARSessionController: NSObject, ObservableObject {
         planeAnchorEntities.removeAll()
         userObjectAnchors.removeAll()
         meshAnchorIDs.removeAll()
+        meshAnchors.removeAll()
+        meshSummaries.removeAll()
+        loggedMeshSemantics.removeAll()
+        meshAggregationPending = false
+        performanceMonitor.reset()
+        publishMeshSemantics(counts: [:], semantics: [])
+        publishPerformanceSnapshot()
         publishUserObjectCount(0)
         publishCounts(planes: 0, meshes: 0)
         lastSessionSnapshot = nil
+        lastPerformanceWarningTime = 0
     }
 
     private func createOrUpdatePlaneEntity(for planeAnchor: ARPlaneAnchor) {
@@ -195,14 +244,15 @@ final class ARSessionController: NSObject, ObservableObject {
             arView.scene.addAnchor(anchorEntity)
         }
 
-        let width = max(planeAnchor.extent.x, 0.01)
-        let depth = max(planeAnchor.extent.z, 0.01)
+        let extent = planeAnchor.planeExtent
+        let width = max(extent.width, 0.01)
+        let depth = max(extent.height, 0.01)
         entity.model = ModelComponent(
             mesh: .generatePlane(width: width, depth: depth),
             materials: [SimpleMaterial(color: color(for: planeAnchor), isMetallic: false)]
         )
         entity.position = SIMD3<Float>(planeAnchor.center.x, 0, planeAnchor.center.z)
-        entity.orientation = simd_quatf()
+        entity.orientation = simd_quatf(angle: extent.rotationOnYAxis, axis: SIMD3<Float>(0, 1, 0))
         entity.isEnabled = showPlaneOverlays
         upsertLabel(for: planeAnchor, in: anchorEntity)
     }
@@ -280,29 +330,115 @@ final class ARSessionController: NSObject, ObservableObject {
         publishCounts(planes: planeEntities.count, meshes: meshAnchorIDs.count)
     }
 
-    private func publishStatusText(_ value: String) {
-        DispatchQueue.main.async { [weak self] in
-            self?.statusText = value
+    private func processMeshAnchor(_ meshAnchor: ARMeshAnchor) {
+        meshAnchorIDs.insert(meshAnchor.identifier)
+        meshAnchors[meshAnchor.identifier] = meshAnchor
+        performanceMonitor.recordMeshAnchorUpdate(meshAnchor)
+        if isMeshClassificationEnabled {
+            meshSummaries[meshAnchor.identifier] = MeshClassificationAnalyzer.summarize(meshAnchor)
+            scheduleMeshAggregation()
         }
+    }
+
+    private func removeMeshAnchor(id: UUID) {
+        meshAnchorIDs.remove(id)
+        meshAnchors.removeValue(forKey: id)
+        meshSummaries.removeValue(forKey: id)
+        performanceMonitor.removeMeshAnchor(id: id)
+        scheduleMeshAggregation()
+    }
+
+    private func scheduleMeshAggregation() {
+        meshAggregationPending = true
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - lastMeshAggregationTime >= meshAggregationInterval else { return }
+        applyMeshAggregation()
+    }
+
+    private func applyMeshAggregation() {
+        meshAggregationPending = false
+        lastMeshAggregationTime = ProcessInfo.processInfo.systemUptime
+
+        let mergedCounts = MeshClassificationAnalyzer.mergeCounts(Array(meshSummaries.values))
+        let semantics = MeshClassificationAnalyzer.detectedSemantics(from: mergedCounts)
+        publishMeshSemantics(counts: mergedCounts, semantics: semantics)
+        logNewMeshSemantics(from: mergedCounts)
+    }
+
+    private func logNewMeshSemantics(from counts: [ARMeshClassification: Int]) {
+        for (classification, count) in counts where classification != .none {
+            guard count >= MeshClassificationAnalyzer.minimumDetectedFaceCount else { continue }
+            guard !loggedMeshSemantics.contains(classification) else { continue }
+            loggedMeshSemantics.insert(classification)
+            logger.log(.info, "Mesh semantic detected: \(classification.displayName) (\(count) faces)")
+        }
+    }
+
+    private func publishMeshSemantics(counts: [ARMeshClassification: Int], semantics: [String]) {
+        deferPublishing {
+            self.meshClassCounts = counts
+            self.detectedMeshSemantics = semantics
+            self.detectedMeshSemanticsText = semantics.isEmpty ? "—" : semantics.joined(separator: ", ")
+        }
+    }
+
+    private func publishStatusText(_ value: String) {
+        deferPublishing { self.statusText = value }
     }
 
     private func publishMeshStateText(_ value: String) {
-        DispatchQueue.main.async { [weak self] in
-            self?.meshStateText = value
-        }
+        deferPublishing { self.meshStateText = value }
     }
 
     private func publishCounts(planes: Int, meshes: Int) {
-        DispatchQueue.main.async { [weak self] in
-            self?.planeCount = planes
-            self?.planesDetectedCount = planes
-            self?.meshCount = meshes
+        deferPublishing {
+            self.planeCount = planes
+            self.planesDetectedCount = planes
+            self.meshCount = meshes
         }
     }
 
     private func publishUserObjectCount(_ value: Int) {
-        DispatchQueue.main.async { [weak self] in
-            self?.userObjectCount = value
+        deferPublishing { self.userObjectCount = value }
+    }
+
+    private func deferPublishing(_ update: @escaping @MainActor () -> Void) {
+        Task { @MainActor in
+            update()
+        }
+    }
+
+    private func publishPerformanceSnapshot() {
+        let snapshot = performanceMonitor.snapshot()
+        deferPublishing {
+            self.arFPSText = snapshot.arFPSText
+            self.frameIntervalMsText = snapshot.frameIntervalMsText
+            self.featurePointsText = snapshot.featurePointsText
+            self.meshDriftText = snapshot.meshDriftText
+            self.meshUpdateHzText = snapshot.meshUpdateHzText
+            self.performanceGradeText = snapshot.performanceGradeText
+            self.isMeshDriftGood = snapshot.isDriftGood
+            self.isPerformanceGradeGood = snapshot.isGradeGood
+        }
+        logPerformanceWarningsIfNeeded(snapshot: snapshot)
+    }
+
+    private func logPerformanceWarningsIfNeeded(snapshot: ARPerformanceSnapshot) {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - lastPerformanceWarningTime >= performanceWarningInterval else { return }
+
+        if snapshot.grade == .poor {
+            logger.log(
+                .warning,
+                "AR quality poor — \(snapshot.arFPSText), \(snapshot.frameIntervalMsText), \(snapshot.featurePointsText), \(snapshot.meshDriftText)"
+            )
+            lastPerformanceWarningTime = now
+            return
+        }
+
+        if snapshot.meshDriftLevel == .high {
+            logger.log(.warning, "Mesh drift high — scene mesh may appear to slide")
+            lastPerformanceWarningTime = now
         }
     }
 
@@ -344,6 +480,16 @@ final class ARSessionController: NSObject, ObservableObject {
         }
 
         logStateChangesIfNeeded()
+
+        if meshAggregationPending {
+            let now = ProcessInfo.processInfo.systemUptime
+            if now - lastMeshAggregationTime >= meshAggregationInterval {
+                applyMeshAggregation()
+            }
+        }
+
+        performanceMonitor.record(frame: frame)
+        publishPerformanceSnapshot()
 
         updateLabelFacing(with: frame)
     }
@@ -391,12 +537,15 @@ final class ARSessionController: NSObject, ObservableObject {
             cameraTransform.columns.3.z
         )
         for label in planeLabelEntities.values where label.isEnabled {
+            let labelPosition = label.position(relativeTo: nil)
             label.look(
                 at: cameraPosition,
-                from: label.position(relativeTo: nil),
+                from: labelPosition,
                 upVector: SIMD3<Float>(0, 1, 0),
                 relativeTo: nil
             )
+            // generateText fronts face -Z; look(at:) points -Z at the camera, so flip to show the readable side.
+            label.orientation *= simd_quatf(angle: .pi, axis: SIMD3<Float>(0, 1, 0))
         }
     }
 
@@ -430,7 +579,7 @@ extension ARSessionController: ARSessionDelegate {
                     createOrUpdatePlaneEntity(for: planeAnchor)
                 }
                 if let meshAnchor = anchor as? ARMeshAnchor {
-                    meshAnchorIDs.insert(meshAnchor.identifier)
+                    processMeshAnchor(meshAnchor)
                 }
             }
             updatePlaneAndMeshCounts()
@@ -444,7 +593,7 @@ extension ARSessionController: ARSessionDelegate {
                     createOrUpdatePlaneEntity(for: planeAnchor)
                 }
                 if let meshAnchor = anchor as? ARMeshAnchor {
-                    meshAnchorIDs.insert(meshAnchor.identifier)
+                    processMeshAnchor(meshAnchor)
                 }
             }
             updatePlaneAndMeshCounts()
@@ -458,7 +607,7 @@ extension ARSessionController: ARSessionDelegate {
                     removePlaneEntity(for: planeAnchor.identifier)
                 }
                 if let meshAnchor = anchor as? ARMeshAnchor {
-                    meshAnchorIDs.remove(meshAnchor.identifier)
+                    removeMeshAnchor(id: meshAnchor.identifier)
                 }
             }
             updatePlaneAndMeshCounts()

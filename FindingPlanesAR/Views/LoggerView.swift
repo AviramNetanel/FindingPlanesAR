@@ -57,7 +57,7 @@ struct LoggerView: View {
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .scaleEffect(0.8)
-                        .onChange(of: logger.isEnabled) { _ in
+                        .onChange(of: logger.isEnabled) {
                             soundPlayer.play(.toggle)
                         }
                 }

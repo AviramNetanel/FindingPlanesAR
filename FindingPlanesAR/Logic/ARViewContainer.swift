@@ -26,8 +26,11 @@ struct ARViewContainer: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: ARView, context: Context) {
-        controller.apply(settings: settings)
         context.coordinator.settings = settings
+        // Defer so @Published updates in apply/settings do not run during SwiftUI's view update pass.
+        Task { @MainActor in
+            controller.apply(settings: settings)
+        }
     }
 
     func makeCoordinator() -> Coordinator {
