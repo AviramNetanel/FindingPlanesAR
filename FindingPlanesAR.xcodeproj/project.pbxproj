@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		E4A100032F9000010047BB53 /* FindingPlanesSDK in Frameworks */ = {isa = PBXBuildFile; productRef = E4A100022F9000010047BB53 /* FindingPlanesSDK */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		E432D3BE2F8CEFD70047BB53 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E4A100032F9000010047BB53 /* FindingPlanesSDK in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +117,7 @@
 			);
 			name = FindingPlanesAR;
 			packageProductDependencies = (
+				E4A100022F9000010047BB53 /* FindingPlanesSDK */,
 			);
 			productName = FindingPlanesAR;
 			productReference = E432D3B02F8CEFD40047BB53 /* FindingPlanesAR.app */;
@@ -195,6 +201,9 @@
 			);
 			mainGroup = E432D3A72F8CEFD40047BB53;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				E4A100012F9000010047BB53 /* XCLocalSwiftPackageReference "../FindingPlanesSDK" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E432D3B12F8CEFD40047BB53 /* Products */;
 			projectDirPath = "";
@@ -617,6 +626,21 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		E4A100012F9000010047BB53 /* XCLocalSwiftPackageReference "../FindingPlanesSDK" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../FindingPlanesSDK;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		E4A100022F9000010047BB53 /* FindingPlanesSDK */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E4A100012F9000010047BB53 /* XCLocalSwiftPackageReference "../FindingPlanesSDK" */;
+			productName = FindingPlanesSDK;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = E432D3A82F8CEFD40047BB53 /* Project object */;
 }
